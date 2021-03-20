@@ -10,6 +10,8 @@ typedef enum
     Error_OK = 0,
     Error_Syntax,
     Error_Unbound,
+    Error_Args,
+    Error_Type,
 } Error;
 
 struct Atom
@@ -332,26 +334,120 @@ int env_set(Atom env, Atom symbol, Atom value)
     return Error_OK;
 }
 
+int listp(Atom expr)
+{
+    while (!nilp(expr))
+    {
+        if (expr.type != AtomType_Pair)
+        {
+            return 0;
+        }
+        expr = cdr(expr);
+    }
+    return 1;
+}
+
+int eval_expr(Atom expr, Atom env, Atom *result)
+{
+    Atom op, args;
+    Error err;
+
+    if (expr.type == AtomType_Symbol)
+    {
+        return env_get(env, expr, result);
+    }
+    else if (expr.type != AtomType_Pair)
+    {
+        *result = expr;
+        return Error_OK;
+    }
+
+    if (!listp(expr))
+    {
+        return Error_Syntax;
+    }
+
+    op = car(expr);
+    args = cdr(expr);
+
+    if (op.type == AtomType_Symbol)
+    {
+        if (strcmp(op.value.symbol, "quote") == 0)
+        {
+            if (nilp(args) || !nilp(cdr(args)))
+            {
+                return Error_Args;
+            }
+
+            *result = car(args);
+            return Error_OK;
+        }
+        else if (strcmp(op.value.symbol, "define") == 0)
+        {
+            Atom sym, val;
+
+            if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args))))
+            {
+                return Error_Args;
+            }
+
+            sym = car(args);
+            if (sym.type != AtomType_Symbol)
+            {
+                return Error_Type;
+            }
+
+            err = eval_expr(car(cdr(args)), env, &val);
+            if (err)
+            {
+                return err;
+            }
+
+            *result = sym;
+            return env_set(env, sym, val);
+        }
+    }
+
+    return Error_Syntax;
+}
+
 int main(int argc, char *argv[])
 {
+    Atom env;
     char *input;
+
+    env = env_create(nil);
 
     while ((input = readline("> ")) != NULL)
     {
         const char *p = input;
         Error err;
-        Atom expr;
+        Atom expr, result;
 
         err = read_expr(p, &p, &expr);
+
+        if (!err)
+        {
+            err = eval_expr(expr, env, &result);
+        }
 
         switch (err)
         {
         case Error_OK:
-            print_expr(expr);
+            print_expr(result);
             putchar('\n');
             break;
         case Error_Syntax:
             puts("Syntax error");
+            break;
+        case Error_Unbound:
+            puts("Symbol not bound");
+            break;
+        case Error_Args:
+            puts("Wrong number of arguments");
+            break;
+        case Error_Type:
+            puts("Wrong type");
             break;
         }
 
