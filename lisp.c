@@ -14,6 +14,8 @@ typedef enum
     Error_Type,
 } Error;
 
+typedef int (*Builtin)(struct Atom args, struct Atom *result);
+
 struct Atom
 {
     enum
@@ -22,6 +24,7 @@ struct Atom
         AtomType_Pair,
         AtomType_Symbol,
         AtomType_Integer,
+        AtomType_Builtin,
     } type;
 
     union
@@ -29,6 +32,7 @@ struct Atom
         struct Pair *pair;
         const char *symbol;
         long integer;
+        Builtin builtin;
     } value;
 };
 
@@ -122,6 +126,9 @@ void print_expr(Atom atom)
         break;
     case AtomType_Integer:
         printf("%ld", atom.value.integer);
+        break;
+    case AtomType_Builtin:
+        printf("#<builtin:%p>", atom.value.builtin);
         break;
     }
 }
@@ -409,6 +416,14 @@ int eval_expr(Atom expr, Atom env, Atom *result)
     }
 
     return Error_Syntax;
+}
+
+Atom make_builtin(Builtin fn)
+{
+    Atom a;
+    a.type = AtomType_Builtin;
+    a.value.builtin = fn;
+    return a;
 }
 
 int main(int argc, char *argv[])
