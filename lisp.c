@@ -30,6 +30,7 @@ typedef struct Atom Atom;
 #define nilp(atom) ((atom).type == AtomType_Nil)
 
 static const Atom nil = {AtomType_Nil};
+static Atom sym_table = {AtomType_Nil};
 
 Atom cons(Atom car_val, Atom cdr_val)
 {
@@ -54,9 +55,23 @@ Atom make_int(long x)
 
 Atom make_sym(const char *s)
 {
-    Atom a;
+    Atom a, p;
+
+    p = sym_table;
+    while (!nilp(p))
+    {
+        a = car(p);
+        if (strcmp(a.value.symbol, s) == 0)
+        {
+            return a;
+        }
+        p = cdr(p);
+    }
+
     a.type = AtomType_Symbol;
     a.value.symbol = strdup(s);
+    sym_table = cons(a, sym_table);
+
     return a;
 }
 
@@ -99,7 +114,7 @@ void print_expr(Atom atom)
 
 int main(int argc, char *argv[])
 {
-    Atom a = cons(make_sym("foo"), cons(make_sym("y"), cons(make_int(1), nil)));
+    Atom a = cons(make_sym("foo"), cons(make_sym("y"), cons(make_sym("y"), nil)));
     print_expr(a);
     return 0;
 }
