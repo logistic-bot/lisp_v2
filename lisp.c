@@ -24,6 +24,7 @@ struct Atom {
         AtomType_Symbol,
         AtomType_Integer,
         AtomType_Builtin,
+        AtomType_Closure,
     } type;
 
     union {
@@ -83,6 +84,28 @@ Atom make_sym(const char* s) {
     sym_table = cons(a, sym_table);
 
     return a;
+}
+
+int make_closure(Atom env, Atom args, Atom body, Atom* result) {
+    Atom p;
+
+    if (!listp(args) || !listp(body)) {
+        return Error_Syntax;
+    }
+
+    // Check argument names are all symbols
+    p = args;
+    while (!nilp(p)) {
+        if (car(p).type != AtomType_Symbol) {
+            return Error_Type;
+        }
+        p = cdr(p);
+    }
+
+    *result = cons(env, cons(args, body));
+    result->type = AtomType_Closure;
+
+    return Error_OK;
 }
 
 void print_expr(Atom atom) {
@@ -320,11 +343,41 @@ Atom copy_list(Atom list) {
 }
 
 int apply(Atom fn, Atom args, Atom* result) {
+    Atom env, arg_names, body;
+
     if (fn.type == AtomType_Builtin) {
         return (*fn.value.builtin)(args, result);
+    } else if (fn.type != AtomType_Closure) {
+        return Error_Type;
     }
 
-    return Error_Type;
+    env = env_create(car(fn));
+    arg_names = car(cdr(fn));
+    body = cdr(cdr(fn));
+
+    // bind arguments
+    while (!nilp(arg_names)) {
+        if (nilp(args)) {
+            return Error_Args;
+        }
+        env_set(env, car(arg_names), car(args));
+        arg_names = cdr(arg_names);
+        args = cdr(args);
+    }
+    if (!nilp(args)) {
+        return Error_Args;
+    }
+
+    // eval body
+    while (!nilp(body)) {
+        Error err = eval_expr(car(body), env, result);
+        if (err) {
+            return err;
+        }
+        body = cdr(body);
+    }
+
+    return Error_OK;
 }
 
 int eval_expr(Atom expr, Atom env, Atom* result) {
@@ -353,6 +406,12 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
 
             *result = car(args);
             return Error_OK;
+        } else if (strcmp(op.value.symbol, "lambda") == 0) {
+            if (nilp(args) || nilp(cdr(args))) {
+                return Error_Args;
+            }
+
+            return make_closure(env, car(args), cdr(args), result);
         } else if (strcmp(op.value.symbol, "define") == 0) {
             Atom sym, val;
 
