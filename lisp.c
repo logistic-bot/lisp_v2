@@ -14,6 +14,7 @@ typedef enum {
     Error_Type,
 } Error;
 
+struct Atom;
 typedef int (*Builtin)(struct Atom args, struct Atom* result);
 
 struct Atom {
@@ -298,8 +299,28 @@ int listp(Atom expr) {
     return 1;
 }
 
+Atom copy_list(Atom list) {
+    Atom a, p;
+
+    if (nilp(list)) {
+        return nil;
+    }
+
+    a = cons(car(list), nil);
+    p = a;
+    list = cdr(list);
+
+    while (!nilp(list)) {
+        cdr(p) = cons(car(list), nil);
+        p = cdr(p);
+        list = cdr(list);
+    }
+
+    return a;
+}
+
 int eval_expr(Atom expr, Atom env, Atom* result) {
-    Atom op, args;
+    Atom op, args, p;
     Error err;
 
     if (expr.type == AtomType_Symbol) {
@@ -346,7 +367,25 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
         }
     }
 
-    return Error_Syntax;
+    /* evaluate operator */
+    err = eval_expr(op, env, &op);
+    if (err) {
+        return err;
+    }
+
+    // eval arguments
+    args = copy_list(args);
+    p = args;
+    while (!nilp(p)) {
+        err = eval_expr(car(p), env, &car(p));
+        if (err) {
+            return err;
+        }
+
+        p = cdr(p);
+    }
+
+    return apply(op, args, result);
 }
 
 Atom make_builtin(Builtin fn) {
@@ -354,6 +393,14 @@ Atom make_builtin(Builtin fn) {
     a.type = AtomType_Builtin;
     a.value.builtin = fn;
     return a;
+}
+
+int apply(Atom fn, Atom args, Atom* result) {
+    if (fn.type == AtomType_Builtin) {
+        return (*fn.value.builtin)(args, result);
+    }
+
+    return Error_Type;
 }
 
 int main(int argc, char* argv[]) {
@@ -395,7 +442,5 @@ int main(int argc, char* argv[]) {
         free(input);
     }
 
-    Atom a = cons(make_sym("foo"), cons(make_sym("y"), cons(make_sym("y"), nil)));
-    print_expr(a);
     return 0;
 }
