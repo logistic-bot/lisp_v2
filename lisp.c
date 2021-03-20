@@ -444,6 +444,82 @@ int builtin_cons(Atom args, Atom* result) {
     return Error_OK;
 }
 
+int builtin_add(Atom args, Atom* result) {
+    Atom a, b;
+
+    if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+        return Error_Args;
+    }
+
+    a = car(args);
+    b = car(cdr(args));
+
+    if (a.type != AtomType_Integer || b.type != AtomType_Integer) {
+        return Error_Type;
+    }
+
+    *result = make_int(a.value.integer + b.value.integer);
+
+    return Error_OK;
+}
+
+int builtin_subtract(Atom args, Atom* result) {
+    Atom a, b;
+
+    if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+        return Error_Args;
+    }
+
+    a = car(args);
+    b = car(cdr(args));
+
+    if (a.type != AtomType_Integer || b.type != AtomType_Integer) {
+        return Error_Type;
+    }
+
+    *result = make_int(a.value.integer - b.value.integer);
+
+    return Error_OK;
+}
+
+int builtin_multiply(Atom args, Atom* result) {
+    Atom a, b;
+
+    if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+        return Error_Args;
+    }
+
+    a = car(args);
+    b = car(cdr(args));
+
+    if (a.type != AtomType_Integer || b.type != AtomType_Integer) {
+        return Error_Type;
+    }
+
+    *result = make_int(a.value.integer * b.value.integer);
+
+    return Error_OK;
+}
+
+int builtin_divide(Atom args, Atom* result) {
+    Atom a, b;
+
+    if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+        return Error_Args;
+    }
+
+    a = car(args);
+    b = car(cdr(args));
+
+    if (a.type != AtomType_Integer || b.type != AtomType_Integer) {
+        return Error_Type;
+    }
+
+    *result = make_int(a.value.integer / b.value.integer);
+
+    return Error_OK;
+}
+
 int main(int argc, char* argv[]) {
     Atom env;
     char* input;
@@ -454,6 +530,11 @@ int main(int argc, char* argv[]) {
     env_set(env, make_sym("car"), make_builtin(builtin_car));
     env_set(env, make_sym("cdr"), make_builtin(builtin_cdr));
     env_set(env, make_sym("cons"), make_builtin(builtin_cons));
+
+    env_set(env, make_sym("+"), make_builtin(builtin_add));
+    env_set(env, make_sym("-"), make_builtin(builtin_subtract));
+    env_set(env, make_sym("*"), make_builtin(builtin_multiply));
+    env_set(env, make_sym("/"), make_builtin(builtin_divide));
 
     while ((input = readline("> ")) != NULL) {
         const char* p = input;
