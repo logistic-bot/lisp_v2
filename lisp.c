@@ -9,6 +9,7 @@ typedef enum
 {
     Error_OK = 0,
     Error_Syntax,
+    Error_Unbound,
 } Error;
 
 struct Atom
@@ -278,6 +279,57 @@ int read_expr(const char *input, const char **end, Atom *result)
     {
         return parse_simple(token, *end, result);
     }
+}
+
+Atom env_create(Atom parent)
+{
+    return cons(parent, nil);
+}
+
+int env_get(Atom env, Atom symbol, Atom *result)
+{
+    Atom parent = car(env);
+    Atom bs = cdr(env);
+
+    while (!nilp(bs))
+    {
+        Atom b = car(bs);
+        if (car(b).value.symbol == symbol.value.symbol)
+        {
+            *result = cdr(b);
+            return Error_OK;
+        }
+        bs = cdr(bs);
+    }
+
+    if (nilp(parent))
+    {
+        return Error_Unbound;
+    }
+
+    return env_get(parent, symbol, result);
+}
+
+int env_set(Atom env, Atom symbol, Atom value)
+{
+    Atom bs = cdr(env);
+    Atom b = nil;
+
+    while (!nilp(bs))
+    {
+        b = car(bs);
+        if (car(b).value.symbol == symbol.value.symbol)
+        {
+            cdr(b) = value;
+            return Error_OK;
+        }
+        bs = cdr(bs);
+    }
+
+    b = cons(symbol, value);
+    cdr(env) = cons(b, cdr(env));
+
+    return Error_OK;
 }
 
 int main(int argc, char *argv[])
