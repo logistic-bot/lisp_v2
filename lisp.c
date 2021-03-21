@@ -145,7 +145,7 @@ void print_expr(Atom atom) {
 int lex(const char* str, const char** start, const char** end) {
     const char* ws = " \t\n";
     const char* delim = "() \t\n";
-    const char* prefix = "()";
+    const char* prefix = "()'";
 
     str += strspn(str, ws); // advance until we hit a char not in ws
 
@@ -264,6 +264,9 @@ int read_expr(const char* input, const char** end, Atom* result) {
         return read_list(*end, end, result);
     } else if (token[0] == ')') {
         return Error_Syntax;
+    } else if (token[0] == '\'') {
+        *result = cons(make_sym("quote"), cons(nil, nil));
+        return read_expr(*end, end, &car(cdr(*result)));
     } else {
         return parse_simple(token, *end, result);
     }
