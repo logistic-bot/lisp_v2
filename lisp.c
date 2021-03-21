@@ -406,6 +406,20 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
 
             *result = car(args);
             return Error_OK;
+        } else if (strcmp(op.value.symbol, "if") == 0) {
+            Atom cond, val;
+
+            if (nilp(args) || nilp(cdr(args)) || nilp(cdr(cdr(args))) || !nilp(cdr(cdr(cdr(args))))) {
+                return Error_Args;
+            }
+
+            err = eval_expr(car(args), env, &cond);
+            if (err) {
+                return err;
+            }
+
+            val = nilp(cond) ? car(cdr(cdr(args))) : car(cdr(args));
+            return eval_expr(val, env, result);
         } else if (strcmp(op.value.symbol, "lambda") == 0) {
             if (nilp(args) || nilp(cdr(args))) {
                 return Error_Args;
@@ -579,6 +593,44 @@ int builtin_divide(Atom args, Atom* result) {
     return Error_OK;
 }
 
+int builtin_numeq(Atom args, Atom* result) {
+    Atom a, b;
+
+    if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+        return Error_Args;
+    }
+
+    a = car(args);
+    b = car(cdr(args));
+
+    if (a.type != AtomType_Integer || b.type != AtomType_Integer) {
+        return Error_Type;
+    }
+
+    *result = (a.value.integer == b.value.integer) ? make_sym("t") : nil;
+
+    return Error_OK;
+}
+
+int builtin_less(Atom args, Atom* result) {
+    Atom a, b;
+
+    if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+        return Error_Args;
+    }
+
+    a = car(args);
+    b = car(cdr(args));
+
+    if (a.type != AtomType_Integer || b.type != AtomType_Integer) {
+        return Error_Type;
+    }
+
+    *result = (a.value.integer < b.value.integer) ? make_sym("t") : nil;
+
+    return Error_OK;
+}
+
 int main(int argc, char* argv[]) {
     Atom env;
     char* input;
@@ -594,6 +646,11 @@ int main(int argc, char* argv[]) {
     env_set(env, make_sym("-"), make_builtin(builtin_subtract));
     env_set(env, make_sym("*"), make_builtin(builtin_multiply));
     env_set(env, make_sym("/"), make_builtin(builtin_divide));
+
+    env_set(env, make_sym("t"), make_sym("t"));
+
+    env_set(env, make_sym("="), make_builtin(builtin_numeq));
+    env_set(env, make_sym("<"), make_builtin(builtin_less));
 
     while ((input = readline("> ")) != NULL) {
         const char* p = input;
