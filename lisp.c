@@ -432,16 +432,26 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
         } else if (strcmp(op.value.symbol, "define") == 0) {
             Atom sym, val;
 
-            if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+            if (nilp(args) || nilp(cdr(args))) {
                 return Error_Args;
             }
 
             sym = car(args);
-            if (sym.type != AtomType_Symbol) {
+            if (sym.type == AtomType_Pair) {
+                err = make_closure(env, cdr(sym), cdr(args), &val);
+                sym = car(sym);
+                if (sym.type != AtomType_Symbol) {
+                    return Error_Type;
+                }
+            } else if (sym.type == AtomType_Symbol) {
+                if (!nilp(cdr(cdr(args)))) {
+                    return Error_Args;
+                }
+                err = eval_expr(car(cdr(args)), env, &val);
+            } else {
                 return Error_Type;
             }
 
-            err = eval_expr(car(cdr(args)), env, &val);
             if (err) {
                 return err;
             }
