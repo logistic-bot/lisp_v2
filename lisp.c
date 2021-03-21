@@ -19,7 +19,7 @@ typedef int (*Builtin)(struct Atom args, struct Atom* result);
 
 struct Atom {
     enum {
-        AtomType_Nil,
+        AtomType_Nil = 0,
         AtomType_Pair,
         AtomType_Symbol,
         AtomType_Integer,
@@ -89,14 +89,18 @@ Atom make_sym(const char* s) {
 int make_closure(Atom env, Atom args, Atom body, Atom* result) {
     Atom p;
 
-    if (!listp(args) || !listp(body)) {
+    if (!listp(body)) {
+        puts("make_closure: body is not a list");
         return Error_Syntax;
     }
 
     // Check argument names are all symbols
     p = args;
     while (!nilp(p)) {
-        if (car(p).type != AtomType_Symbol) {
+        if (p.type == AtomType_Symbol) {
+            break;
+        } else if (p.type != AtomType_Pair || car(p).type != AtomType_Symbol) {
+            puts("make_closure: argument name is not a symbol");
             return Error_Type;
         }
         p = cdr(p);
@@ -151,6 +155,7 @@ int lex(const char* str, const char** start, const char** end) {
 
     if (str[0] == '\0') {
         *start = *end = NULL;
+        puts("lex: Missing null byte");
         return Error_Syntax;
     }
 
@@ -218,6 +223,7 @@ int read_list(const char* start, const char** end, Atom* result) {
         if (token[0] == '.' && *end - token == 1) {
             // improper list
             if (nilp(p)) {
+                puts("read_list: improper list: nil value");
                 return Error_Syntax;
             }
 
@@ -231,6 +237,7 @@ int read_list(const char* start, const char** end, Atom* result) {
             // read closing )
             err = lex(*end, &token, end);
             if (!err && token[0] != ')') {
+                puts("read_list: missing closing ')'");
                 err = Error_Syntax;
             }
             return err;
@@ -263,6 +270,7 @@ int read_expr(const char* input, const char** end, Atom* result) {
     if (token[0] == '(') {
         return read_list(*end, end, result);
     } else if (token[0] == ')') {
+        puts("read_expr: missing closing ')'");
         return Error_Syntax;
     } else if (token[0] == '\'') {
         *result = cons(make_sym("quote"), cons(nil, nil));
@@ -290,6 +298,7 @@ int env_get(Atom env, Atom symbol, Atom* result) {
     }
 
     if (nilp(parent)) {
+        printf("env_get: unboud symbol: %s", symbol.value.symbol);
         return Error_Unbound;
     }
 
@@ -351,6 +360,13 @@ int apply(Atom fn, Atom args, Atom* result) {
     if (fn.type == AtomType_Builtin) {
         return (*fn.value.builtin)(args, result);
     } else if (fn.type != AtomType_Closure) {
+        puts("apply: tried to apply non-closure atom");
+        printf("apply: fn: %d\n", fn.type);
+        print_expr(fn.value.pair->atom[0]);
+        putc('\n', stdin);
+        print_expr(fn.value.pair->atom[1]);
+        putc('\n', stdin);
+        puts("Did you forget to quote a list argument to a function?");
         return Error_Type;
     }
 
@@ -360,7 +376,14 @@ int apply(Atom fn, Atom args, Atom* result) {
 
     // bind arguments
     while (!nilp(arg_names)) {
+        if (arg_names.type == AtomType_Symbol) {
+            env_set(env, arg_names, args);
+            args = nil;
+            break;
+        }
+
         if (nilp(args)) {
+            puts("apply: args is nil");
             return Error_Args;
         }
         env_set(env, car(arg_names), car(args));
@@ -368,6 +391,7 @@ int apply(Atom fn, Atom args, Atom* result) {
         args = cdr(args);
     }
     if (!nilp(args)) {
+        puts("apply: args is not nil");
         return Error_Args;
     }
 
@@ -395,6 +419,7 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
     }
 
     if (!listp(expr)) {
+        puts("eval_expr: expr is not a list");
         return Error_Syntax;
     }
 
@@ -404,6 +429,7 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
     if (op.type == AtomType_Symbol) {
         if (strcmp(op.value.symbol, "quote") == 0) {
             if (nilp(args) || !nilp(cdr(args))) {
+                puts("eval_expr: quote");
                 return Error_Args;
             }
 
@@ -413,6 +439,7 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
             Atom cond, val;
 
             if (nilp(args) || nilp(cdr(args)) || nilp(cdr(cdr(args))) || !nilp(cdr(cdr(cdr(args))))) {
+                puts("eval_expr: if");
                 return Error_Args;
             }
 
@@ -425,6 +452,7 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
             return eval_expr(val, env, result);
         } else if (strcmp(op.value.symbol, "lambda") == 0) {
             if (nilp(args) || nilp(cdr(args))) {
+                puts("eval_expr: lambda");
                 return Error_Args;
             }
 
@@ -433,6 +461,7 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
             Atom sym, val;
 
             if (nilp(args) || nilp(cdr(args))) {
+                puts("eval_expr: define");
                 return Error_Args;
             }
 
@@ -441,14 +470,17 @@ int eval_expr(Atom expr, Atom env, Atom* result) {
                 err = make_closure(env, cdr(sym), cdr(args), &val);
                 sym = car(sym);
                 if (sym.type != AtomType_Symbol) {
+                    puts("eval_expr: define: car(sym).type != symbool and sym.type == pair");
                     return Error_Type;
                 }
             } else if (sym.type == AtomType_Symbol) {
                 if (!nilp(cdr(cdr(args)))) {
+                    puts("eval_expr: define: sym.type == symbol and cdr(cdr(args)) not nil");
                     return Error_Args;
                 }
                 err = eval_expr(car(cdr(args)), env, &val);
             } else {
+                puts("eval_expr: define");
                 return Error_Type;
             }
 
@@ -491,12 +523,14 @@ Atom make_builtin(Builtin fn) {
 
 int builtin_car(Atom args, Atom* result) {
     if (nilp(args) || !nilp(cdr(args))) {
+        puts("builtin_car: wrong number of arguments (expected 2)");
         return Error_Args;
     }
 
     if (nilp(car(args))) {
         *result = nil;
     } else if (car(args).type != AtomType_Pair) {
+        puts("builtin_car: expected first argument to be a pair");
         return Error_Type;
     } else {
         *result = car(car(args));
@@ -507,12 +541,14 @@ int builtin_car(Atom args, Atom* result) {
 
 int builtin_cdr(Atom args, Atom* result) {
     if (nilp(args) || !nilp(cdr(args))) {
+        puts("builtin_cdr: expected exactly 2 arguments");
         return Error_Args;
     }
 
     if (nilp(car(args))) {
         *result = nil;
     } else if (car(args).type != AtomType_Pair) {
+        puts("builtin_cdr: expected first argument to be a pair");
         return Error_Type;
     } else {
         *result = cdr(car(args));
@@ -523,6 +559,7 @@ int builtin_cdr(Atom args, Atom* result) {
 
 int builtin_cons(Atom args, Atom* result) {
     if (nilp(args) || nilp(cdr(args)) || !nilp(cdr(cdr(args)))) {
+        puts("builtin_cons: expected 2 arguments");
         return Error_Args;
     }
 
